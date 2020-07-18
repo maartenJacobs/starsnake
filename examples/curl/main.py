@@ -1,3 +1,9 @@
+"""
+Simple curl-like script to fetch Gemini pages.
+
+Usage: PYTHONPATH=. python examples/curl/main.py --help
+"""
+
 import argparse
 import logging
 import sys
@@ -33,6 +39,11 @@ class Command:
 
 
 def _command_from_cli() -> Command:
+    """
+    Parse CLI arguments as a command.
+    :return: parsed command.
+    """
+
     parser = argparse.ArgumentParser()
     parser.add_argument("url", help="Gemini URL to fetch")
     parser.add_argument(
@@ -54,6 +65,12 @@ def _command_from_cli() -> Command:
 
 
 def _execute_command(command: Command) -> int:
+    """
+    Execute the parsed command.
+    :param command: command options including URL to fetch.
+    :return: exit code
+    """
+
     # Configure logging.
     logger = logging.getLogger(client.constants.LOGGER_NAME)
     logger.setLevel(command.logging_level)
@@ -80,6 +97,7 @@ def _execute_command(command: Command) -> int:
         print("certificate appears to be required?")
     else:
         print(f"unknown response: {header.category_value}{header.detail_value}")
+        return 1
 
     return 0
 
