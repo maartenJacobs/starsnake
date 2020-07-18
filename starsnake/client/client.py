@@ -148,7 +148,8 @@ def _wrap_socket_with_self_signed_certs(
             logger.debug(
                 "retrying request to %s:%d with self-signed certificate", host, port
             )
-            yield _wrap_socket_with_self_signed_certs(host, port, cert_store)
+            with _wrap_socket_with_self_signed_certs(host, port, cert_store) as secure_sock:
+                yield secure_sock
         else:
             raise e
     finally:
