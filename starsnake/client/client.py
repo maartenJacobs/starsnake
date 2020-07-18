@@ -1,4 +1,3 @@
-import enum
 import logging
 import ssl
 import socket
@@ -6,91 +5,17 @@ from contextlib import contextmanager
 from typing import List, Optional, Tuple
 from urllib.parse import urlparse
 
+from . import constants
 from . import exceptions
 from . import tofu
 
 
 logger = logging.getLogger("starsnake")
 
-GEMINI_DEFAULT_PORT = 1965
-
-SSL_SELF_SIGNED_CERT_ERROR_CODE = 18
-
-
-class Category(enum.Enum):
-    UNKNOWN = 0
-
-    INPUT = 1
-    SUCCESS = 2
-    REDIRECT = 3
-    TEMPORARY_FAILURE = 4
-    PERMANENT_FAILURE = 5
-    CERTIFICATE_REQUIRED = 6
-
-
-class Detail(enum.Enum):
-    UNKNOWN = enum.auto()
-
-    # Input details.
-    INPUT = enum.auto()
-    INPUT_SENSITIVE = enum.auto()
-
-    # Success details.
-    SUCCESS = enum.auto()
-
-    # Redirect details.
-    REDIRECT_TEMPORARY = enum.auto()
-    REDIRECT_PERMANENT = enum.auto()
-
-    # Temporary failure details.
-    TEMPORARY_FAILURE = enum.auto()
-    TEMPORARY_FAILURE_SERVER_UNAVAILABLE = enum.auto()
-    TEMPORARY_FAILURE_CGI_ERROR = enum.auto()
-    TEMPORARY_FAILURE_PROXY_ERROR = enum.auto()
-    TEMPORARY_FAILURE_SLOW_DOWN = enum.auto()
-
-    # Permanent failure details.
-    PERMANENT_FAILURE = enum.auto()
-    PERMANENT_FAILURE_NOT_FOUND = enum.auto()
-    PERMANENT_FAILURE_GONE = enum.auto()
-    PERMANENT_FAILURE_PROXY_REQUEST_REFUSED = enum.auto()
-    PERMANENT_FAILURE_BAD_REQUEST = enum.auto()
-
-    # Certificate required details.
-    CERTIFICATE_REQUIRED = enum.auto()
-    CERTIFICATE_REQUIRED_UNAUTHORISED = enum.auto()
-    CERTIFICATE_REQUIRED_INVALID = enum.auto()
-
-
-_CATEGORY_TO_DETAILS_MAP = {
-    Category.INPUT: {0: Detail.INPUT, 1: Detail.INPUT_SENSITIVE},
-    Category.SUCCESS: {0: Detail.SUCCESS},
-    Category.REDIRECT: {0: Detail.REDIRECT_TEMPORARY, 1: Detail.REDIRECT_PERMANENT},
-    Category.TEMPORARY_FAILURE: {
-        0: Detail.TEMPORARY_FAILURE,
-        1: Detail.TEMPORARY_FAILURE_SERVER_UNAVAILABLE,
-        2: Detail.TEMPORARY_FAILURE_CGI_ERROR,
-        3: Detail.TEMPORARY_FAILURE_CGI_ERROR,
-        4: Detail.TEMPORARY_FAILURE_SLOW_DOWN,
-    },
-    Category.PERMANENT_FAILURE: {
-        0: Detail.PERMANENT_FAILURE,
-        1: Detail.PERMANENT_FAILURE_GONE,
-        2: Detail.PERMANENT_FAILURE_GONE,
-        3: Detail.PERMANENT_FAILURE_PROXY_REQUEST_REFUSED,
-        9: Detail.PERMANENT_FAILURE_BAD_REQUEST,
-    },
-    Category.CERTIFICATE_REQUIRED: {
-        0: Detail.CERTIFICATE_REQUIRED,
-        1: Detail.CERTIFICATE_REQUIRED_UNAUTHORISED,
-        2: Detail.CERTIFICATE_REQUIRED_INVALID,
-    },
-}
-
 
 class HeaderLine:
-    category: Category
-    detail: Detail
+    category: constants.Category
+    detail: constants.Detail
     meta: str
 
     # Fields for compatibility with new status codes. Use these fields when the category or
@@ -100,9 +25,9 @@ class HeaderLine:
 
     def __init__(
         self,
-        category: Category,
+        category: constants.Category,
         category_value: int,
-        detail: Detail,
+        detail: constants.Detail,
         detail_value: int,
         meta: str,
     ) -> None:
@@ -157,9 +82,9 @@ def _parse_header(line: bytes) -> Tuple[HeaderLine, bytes]:
         )
 
     try:
-        category = Category(category_value)
+        category = constants.Category(category_value)
     except ValueError:
-        category = Category.UNKNOWN
+        category = constants.Category.UNKNOWN
 
     # Determine the status detail.
     try:
@@ -169,7 +94,9 @@ def _parse_header(line: bytes) -> Tuple[HeaderLine, bytes]:
             f"status detail '{chr(line[1])}' is not an integer"
         )
 
-    detail = _CATEGORY_TO_DETAILS_MAP[category].get(detail_value, Detail.UNKNOWN)
+    detail = constants.CATEGORY_TO_DETAILS_MAP[category].get(
+        detail_value, constants.Detail.UNKNOWN
+    )
 
     # Determine the meta line, which is the rest of the line.
     meta = line[3:].decode()
@@ -185,7 +112,7 @@ def _receive_response(
     line = secure_socket.recv(1029)
     header, remaining = _parse_header(line)
 
-    if header.category == Category.SUCCESS:
+    if header.category == constants.Category.SUCCESS:
         # Get response body.
         body = remaining
         next_payload = secure_socket.recv(4096)
@@ -214,7 +141,7 @@ def _wrap_socket_with_self_signed_certs(
         logger.debug(
             "request to %s:%d failed due to self-signed certificate", host, port
         )
-        if e.verify_code == SSL_SELF_SIGNED_CERT_ERROR_CODE:
+        if e.verify_code == constants.SSL_SELF_SIGNED_CERT_ERROR_CODE:
             certificate = ssl.get_server_certificate((host, port))
             cert_store.store_cert(host, certificate)
 
@@ -245,7 +172,7 @@ def sync_request(
         raise exceptions.UnknownProtocolError(f"Unknown protocol: {parsed_url.scheme}")
 
     host = parsed_url.hostname
-    port = parsed_url.port or GEMINI_DEFAULT_PORT
+    port = parsed_url.port or constants.GEMINI_DEFAULT_PORT
 
     with _wrap_socket_with_self_signed_certs(host, port, cert_store) as secure_sock:
         _send(secure_sock, url.encode() + b"\r\n")

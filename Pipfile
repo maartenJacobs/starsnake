@@ -4,8 +4,9 @@ url = "https://pypi.org/simple"
 verify_ssl = true
 
 [dev-packages]
-black = "*"
 bpython = "*"
+black = "==19.10b0"
+mypy = "==0.782"
 
 [packages]
 

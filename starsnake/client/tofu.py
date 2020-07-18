@@ -57,6 +57,7 @@ class SelfSignedCertFileStore(SelfSignedCertStore):
             "loading self-signed certificate for %s from %s", hostname, str(cert_path)
         )
         context.load_verify_locations(cafile=str(cert_path))
+        return True
 
     def store_cert(self, hostname: str, pem_contents: str) -> None:
         cert_path = self._cert_path(hostname)
