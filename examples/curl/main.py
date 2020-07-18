@@ -7,9 +7,21 @@ Usage: PYTHONPATH=. python examples/curl/main.py --help
 import argparse
 import logging
 import sys
-from typing import List, cast
+from functools import partial
+from typing import List, cast, Set, Tuple, Optional
 
 from starsnake import client
+
+
+logger = logging.getLogger("curl")
+
+
+class RedirectCycleError(Exception):
+    """Raised when the client has been redirected to a page that previously redirected."""
+
+
+class TooManyRedirectsError(Exception):
+    """Raised when the client has followed more redirects than Python can handle."""
 
 
 class Command:
@@ -24,7 +36,9 @@ class Command:
     # Logging level. Only DEBUG, INFO, WARNING and ERROR are supported.
     logging_level: int
 
-    def __init__(self, url: str, logging_level: int) -> None:
+    follow_redirects: bool
+
+    def __init__(self, url: str, logging_level: int, follow_redirects: bool) -> None:
         super().__init__()
 
         assert logging_level in [
@@ -36,6 +50,7 @@ class Command:
 
         self.url = url
         self.logging_level = logging_level
+        self.follow_redirects = follow_redirects
 
 
 def _command_from_cli() -> Command:
@@ -49,6 +64,7 @@ def _command_from_cli() -> Command:
     parser.add_argument(
         "-v", "--verbosity", action="count", default=0, help="Increase output verbosity"
     )
+    parser.add_argument("-L", "--location", action="store_const", const=True)
     args = parser.parse_args()
 
     if args.verbosity == 0:
@@ -61,7 +77,59 @@ def _command_from_cli() -> Command:
     else:  # >= 3
         logging_level = logging.DEBUG
 
-    return Command(url=args.url, logging_level=logging_level,)
+    return Command(
+        url=args.url, logging_level=logging_level, follow_redirects=bool(args.location)
+    )
+
+
+def _make_request(
+    url: str, follow_redirects: bool, prev_redirects: Set[str]
+) -> Tuple[client.HeaderLine, Optional[List[bytes]]]:
+    """
+    Fetch the page at url, optionally following redirects whilst preventing redirect chains.
+
+    Malicious pages that keep redirecting are limited by `os.getrecursionlimit()`. For a simple
+    curl-like script this is better than an infinite redirect but consider using an explicit
+    redirect limit instead.
+
+    :param url: Gemini URL to fetch.
+    :param follow_redirects: make additional requests until response is not redirect.
+    :param prev_redirects: previous redirects state. This is used to prevent infinite redirects.
+    :return: fetched page
+    :raises RedirectCycleError: client was redirected to page that previously resulted in a redirect.
+    :raises TooManyRedirectsError: client was redirected too many times.
+    """
+
+    header, response = client.sync_request(url)
+    if follow_redirects and header.category == client.Category.REDIRECT:
+        new_url = header.meta
+        if new_url in prev_redirects:
+            raise RedirectCycleError(
+                f"redirected to {new_url} that previously redirected"
+            )
+
+        logger.debug("following redirect to %s", header.meta)
+        prev_redirects.add(new_url)
+
+        try:
+            return _make_request(new_url, follow_redirects, prev_redirects)
+        except RecursionError:
+            raise TooManyRedirectsError(
+                f"followed too many ({len(prev_redirects)}) redirects"
+            )
+
+    logger.info("followed %d redirects to end up at %s", len(prev_redirects), url)
+    return header, response
+
+
+def _configure_logger(logging_level: int, logger: logging.Logger):
+    """Configure a logger to use the logging level and our desired output format."""
+    logger.setLevel(logging_level)
+    ch = logging.StreamHandler()
+    ch.setLevel(logging_level)
+    formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+    ch.setFormatter(formatter)
+    logger.addHandler(ch)
 
 
 def _execute_command(command: Command) -> int:
@@ -72,16 +140,12 @@ def _execute_command(command: Command) -> int:
     """
 
     # Configure logging.
-    logger = logging.getLogger(client.constants.LOGGER_NAME)
-    logger.setLevel(command.logging_level)
-    ch = logging.StreamHandler()
-    ch.setLevel(command.logging_level)
-    formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
-    ch.setFormatter(formatter)
-    logger.addHandler(ch)
+    configure_logger = partial(_configure_logger, command.logging_level)
+    configure_logger(logger)
+    configure_logger(logging.getLogger(client.constants.LOGGER_NAME))
 
     # Make the request.
-    header, response = client.sync_request(command.url)
+    header, response = _make_request(command.url, cmd.follow_redirects, set())
 
     if header.category == client.Category.SUCCESS:
         print(b"\n".join(cast(List[bytes], response)).decode())
