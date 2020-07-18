@@ -20,4 +20,6 @@ the web. Unlike Gopher it uses TLS by default so no one is intercepting your bro
 For example, `PYTHONPATH=. python examples/curl/main.py gemini://gemini.circumlunar.space/` will
 print the page hosted on `gemini://gemini.circumlunar.space/`.
 
+Note that this curl-ripoff will store files `~/.starsnake/`.
+
 This tool is the main way I browse Geminispace at the moment so it's subject to much change.
