@@ -4,7 +4,9 @@ from abc import ABC, abstractmethod
 from os import path
 from pathlib import Path
 
-logger = logging.getLogger("starsnake")
+from . import constants
+
+logger = logging.getLogger(constants.LOGGER_NAME)
 
 
 class SelfSignedCertStore(ABC):

@@ -10,7 +10,7 @@ from . import exceptions
 from . import tofu
 
 
-logger = logging.getLogger("starsnake")
+logger = logging.getLogger(constants.LOGGER_NAME)
 
 
 class HeaderLine:
@@ -148,7 +148,9 @@ def _wrap_socket_with_self_signed_certs(
             logger.debug(
                 "retrying request to %s:%d with self-signed certificate", host, port
             )
-            with _wrap_socket_with_self_signed_certs(host, port, cert_store) as secure_sock:
+            with _wrap_socket_with_self_signed_certs(
+                host, port, cert_store
+            ) as secure_sock:
                 yield secure_sock
         else:
             raise e

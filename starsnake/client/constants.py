@@ -1,5 +1,7 @@
 import enum
 
+LOGGER_NAME = "starsnake"
+
 GEMINI_DEFAULT_PORT = 1965
 
 SSL_SELF_SIGNED_CERT_ERROR_CODE = 18
