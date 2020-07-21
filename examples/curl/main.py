@@ -8,7 +8,7 @@ import argparse
 import logging
 import sys
 from functools import partial
-from typing import List, cast, Set, Tuple, Optional
+from typing import Set, Tuple, Optional, cast
 
 from starsnake import client
 
@@ -84,7 +84,7 @@ def _command_from_cli() -> Command:
 
 def _make_request(
     url: str, follow_redirects: bool, prev_redirects: Set[str]
-) -> Tuple[client.HeaderLine, Optional[List[bytes]]]:
+) -> Tuple[client.HeaderLine, Optional[bytes]]:
     """
     Fetch the page at url, optionally following redirects whilst preventing redirect chains.
 
@@ -148,7 +148,7 @@ def _execute_command(command: Command) -> int:
     header, response = _make_request(command.url, cmd.follow_redirects, set())
 
     if header.category == client.Category.SUCCESS:
-        print(b"\n".join(cast(List[bytes], response)).decode())
+        print(cast(bytes, response).decode())
     elif header.category == client.Category.INPUT:
         answer = input(header.meta)
     elif header.category == client.Category.REDIRECT:
