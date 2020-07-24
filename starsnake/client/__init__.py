@@ -1,3 +1,7 @@
+"""
+Gemini client library for Python.
+"""
+
 from .client import async_request, sync_request, HeaderLine
 from .constants import Category, Detail
 from .tofu import SelfSignedCertFileStore

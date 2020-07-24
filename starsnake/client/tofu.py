@@ -1,3 +1,8 @@
+"""
+TLS certificate stores to support the TOFU approach: "Trust On First Use", or accept the
+certificate of the service as authoritative but only on first encounter.
+"""
+
 import logging
 import ssl
 from abc import ABC, abstractmethod

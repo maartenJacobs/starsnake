@@ -51,3 +51,32 @@ gemini.circumlunar.space/
 ```
 
 Similar to the Curl-like tool, this tool will store files `~/.starsnake/`.
+
+## Development
+
+### Requirements
+
+You'll need to install Python 3.7 and 3.8. `pyenv` is a good option to install multiple Python versions.
+
+Then install `tox`, which will run the linting and tests for both Python 3.7 and 3.8.
+
+```shell script
+pip install 'tox==3.17.*'
+```
+
+### Commands
+
+Run `tox` to run all of the linters and tests:
+
+```shell script
+tox
+```
+
+### Virtual environments
+
+If you need a virtual environment outside of the `tox` commands above (e.g. for your IDE), you can also use
+`tox` to create an environment for you. The following command creates a virtual environment in `./venv-py38`.
+
+```shell script
+tox --devenv venv-py38 -e py38
+```

@@ -1,3 +1,9 @@
+"""
+Download Gemini pages recursively.
+
+Usage: cd examples && PYTHONPATH=.. python -m downloader --help
+"""
+
 import argparse
 import asyncio
 import logging
@@ -14,6 +20,7 @@ from starsnake.text import parser
 logger = logging.getLogger("downloader")
 
 
+# pylint: disable=too-few-public-methods
 class Command:
     """
     Curl command to execute.
@@ -57,6 +64,7 @@ def _command_from_cli() -> Command:
     :return: parsed command.
     """
 
+    # pylint: disable=redefined-outer-name
     parser = argparse.ArgumentParser()
     parser.add_argument("url", help="Gemini URL to crawl and download")
     parser.add_argument(
@@ -94,32 +102,53 @@ def _command_from_cli() -> Command:
 
 def _configure_logger(logging_level: int, logger: logging.Logger):
     """Configure a logger to use the logging level and our desired output format."""
+    # pylint: disable=redefined-outer-name
     logger.setLevel(logging_level)
-    ch = logging.StreamHandler()
-    ch.setLevel(logging_level)
+    handler = logging.StreamHandler()
+    handler.setLevel(logging_level)
     formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
-    ch.setFormatter(formatter)
-    logger.addHandler(ch)
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
 
 
 class Counter:
-    """Simple statistics collection."""
+    """
+    Simple statistics collection.
+
+    >>> count = Counter()
+    >>> count.storage_count
+    0
+    >>> count.stored()
+    >>> count.storage_count
+    1
+    """
 
     def __init__(self) -> None:
         super().__init__()
         self.storage_count = 0
 
     def stored(self):
+        """Increase count of stored files."""
         self.storage_count += 1
 
 
 class Storage:
+    """
+    Store downloaded Gemini pages safely in a base directory.
+    """
+
     def __init__(self, base_dir: Path, counter: Counter) -> None:
         super().__init__()
         self.base_dir: Path = base_dir
         self.counter = counter
 
-    def store(self, path: str, mime_type: str, contents: bytes):
+    def store(self, path: str, mime_type: str, contents: bytes) -> None:
+        """
+        Store Gemini page downloaded from `path`.
+        :param path: the URL path source.
+        :param mime_type: the mime type of the contents.
+        :param contents: the contents of the downloaded file.
+        """
         storage_path = self._url_path_to_storage_path(mime_type, path)
         self._ensure_storage_within_base(storage_path)
         self._create_parent_dirs(storage_path)
@@ -133,8 +162,8 @@ class Storage:
     def _url_path_to_storage_path(self, mime_type: str, path: str) -> Path:
         parts = path.split("/")
         storage_path = self.base_dir
-        for p in parts:
-            storage_path /= p
+        for path_part in parts:
+            storage_path /= path_part
         if len(parts) == 0 or "." not in parts[-1]:
             storage_path /= f"index.{self._extension_name(mime_type)}"
         return storage_path.absolute()
@@ -148,8 +177,7 @@ class Storage:
     def _extension_name(self, mimetype: str) -> str:
         if mimetype == parser.GEMINI_MIME_TYPE:
             return "gmi"
-        else:
-            return "unknown"
+        return "unknown"
 
 
 class ResponseProcessor:
@@ -176,6 +204,8 @@ class ResponseProcessor:
         header: client.HeaderLine,
         response: Optional[bytes],
     ):
+        """Process the Gemini response."""
+
         if header.category == client.Category.SUCCESS:
             self._process_success(
                 from_url, self._mime_type_from_header(header), cast(bytes, response)
@@ -260,6 +290,7 @@ class Requester:
         self.cert_store = client.SelfSignedCertFileStore()
 
     async def request(self, url: str) -> Tuple[client.HeaderLine, Optional[bytes]]:
+        """Make an async Gemini request."""
         return await client.async_request(url, self.cert_store)
 
 
@@ -275,7 +306,7 @@ async def _worker(
             try:
                 header, response = await requester.request(url)
                 processor.process(urlparse(url), header, response)
-            except Exception:  # Do not let the worker die.
+            except Exception:  # Do not let the worker die; pylint: disable=broad-except
                 logger.debug("processing of '%s' failed", url, exc_info=True)
             finally:
                 visited.add(url)

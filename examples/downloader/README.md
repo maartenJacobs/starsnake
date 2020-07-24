@@ -5,7 +5,7 @@ Download all pages of a Gemini site.
 ## Usage
 
 ```shell script
-PYTHONPATH=. python examples/downloader/main.py <url> [<output_directory>]
+PYTHONPATH=. python -m downloader <url> [<output_directory>]
 ```
 
 The above will download all pages hosted at the URL and store them in

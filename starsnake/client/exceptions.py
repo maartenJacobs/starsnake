@@ -1,3 +1,8 @@
+"""
+Exceptions thrown by the Gemini client library.
+"""
+
+
 class ClientError(Exception):
     """Base Gemini client error."""
 

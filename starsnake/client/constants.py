@@ -1,3 +1,7 @@
+"""
+Gemini constants.
+"""
+
 import enum
 
 LOGGER_NAME = "starsnake"
@@ -8,6 +12,13 @@ SSL_SELF_SIGNED_CERT_ERROR_CODE = 18
 
 
 class Category(enum.Enum):
+    """
+    Top-level reason for the response.
+
+    If various response can be handled by the same code, then category is all you need to check.
+    If you need to handle 1 or more response codes differently, look at the Detail enum.
+    """
+
     UNKNOWN = 0
 
     INPUT = 1

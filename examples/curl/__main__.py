@@ -1,7 +1,7 @@
 """
 Simple curl-like script to fetch Gemini pages.
 
-Usage: PYTHONPATH=. python examples/curl/main.py --help
+Usage: cd examples && PYTHONPATH=.. python -m curl --help
 """
 
 import argparse
@@ -24,6 +24,7 @@ class TooManyRedirectsError(Exception):
     """Raised when the client has followed more redirects than Python can handle."""
 
 
+# pylint: disable=too-few-public-methods
 class Command:
     """
     Curl command to execute.
@@ -59,12 +60,14 @@ def _command_from_cli() -> Command:
     :return: parsed command.
     """
 
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(prog="curl")
     parser.add_argument("url", help="Gemini URL to fetch")
     parser.add_argument(
         "-v", "--verbosity", action="count", default=0, help="Increase output verbosity"
     )
-    parser.add_argument("-L", "--location", action="store_const", const=True)
+    parser.add_argument(
+        "-L", "--location", action="store_const", const=True, help="Follow redirects"
+    )
     args = parser.parse_args()
 
     if args.verbosity == 0:
@@ -96,7 +99,8 @@ def _make_request(
     :param follow_redirects: make additional requests until response is not redirect.
     :param prev_redirects: previous redirects state. This is used to prevent infinite redirects.
     :return: fetched page
-    :raises RedirectCycleError: client was redirected to page that previously resulted in a redirect.
+    :raises RedirectCycleError: client was redirected to page that previously resulted in a
+        redirect.
     :raises TooManyRedirectsError: client was redirected too many times.
     """
 
@@ -124,12 +128,13 @@ def _make_request(
 
 def _configure_logger(logging_level: int, logger: logging.Logger):
     """Configure a logger to use the logging level and our desired output format."""
+    # pylint: disable=redefined-outer-name
     logger.setLevel(logging_level)
-    ch = logging.StreamHandler()
-    ch.setLevel(logging_level)
+    handler = logging.StreamHandler()
+    handler.setLevel(logging_level)
     formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
-    ch.setFormatter(formatter)
-    logger.addHandler(ch)
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
 
 
 def _execute_command(command: Command) -> int:
@@ -150,7 +155,8 @@ def _execute_command(command: Command) -> int:
     if header.category == client.Category.SUCCESS:
         print(cast(bytes, response).decode())
     elif header.category == client.Category.INPUT:
-        answer = input(header.meta)
+        input(header.meta)
+        # TODO: feed answer back via next request.
     elif header.category == client.Category.REDIRECT:
         print(f"redirect to {header.meta}")
     elif header.category == client.Category.TEMPORARY_FAILURE:
@@ -167,6 +173,7 @@ def _execute_command(command: Command) -> int:
 
 
 if __name__ == "__main__":
+    # pylint: disable=invalid-name
     cmd = _command_from_cli()
-    ret = _execute_command(cmd)
-    sys.exit(ret)
+    exit_code = _execute_command(cmd)
+    sys.exit(exit_code)

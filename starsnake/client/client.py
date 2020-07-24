@@ -1,3 +1,7 @@
+"""
+Gemini client library for Python.
+"""
+
 import asyncio
 import logging
 import ssl
@@ -6,15 +10,17 @@ from contextlib import contextmanager
 from typing import Optional, Tuple
 from urllib.parse import urlparse
 
-from . import constants
-from . import exceptions
-from . import tofu
+from . import constants, exceptions, tofu
 
 
 logger = logging.getLogger(constants.LOGGER_NAME)
 
 
 class HeaderLine:
+    """
+    The Gemini response header defines the result of the Gemini request.
+    """
+
     category: constants.Category
     detail: constants.Detail
     meta: str
@@ -24,6 +30,7 @@ class HeaderLine:
     category_value: int
     detail_value: int
 
+    # pylint: disable=too-many-arguments
     def __init__(
         self,
         category: constants.Category,
@@ -47,9 +54,11 @@ class HeaderLine:
 
     @property
     def status_code(self) -> int:
+        """The status code as an int."""
         return self.category_value * 10 + self.detail_value
 
 
+# pylint: disable=unused-argument
 def tls_context(
     tls_1_2_forbidden: bool = False, self_signed_cert_forbidden: bool = False,
 ) -> ssl.SSLContext:
@@ -168,11 +177,11 @@ def _wrap_socket_with_self_signed_certs(
         sock = socket.create_connection((host, port))
         secure_sock = context.wrap_socket(sock, server_hostname=host)
         yield secure_sock
-    except ssl.SSLCertVerificationError as e:
+    except ssl.SSLCertVerificationError as cert_error:
         logger.debug(
             "request to %s:%d failed due to self-signed certificate", host, port
         )
-        if e.verify_code == constants.SSL_SELF_SIGNED_CERT_ERROR_CODE:
+        if cert_error.verify_code == constants.SSL_SELF_SIGNED_CERT_ERROR_CODE:
             certificate = ssl.get_server_certificate((host, port))
             cert_store.store_cert(host, certificate)
 
@@ -184,18 +193,31 @@ def _wrap_socket_with_self_signed_certs(
             ) as secure_sock:
                 yield secure_sock
         else:
-            raise e
+            raise cert_error
     finally:
         if secure_sock:
             secure_sock.close()
 
 
 def _parse_url(url: str) -> Tuple[str, int]:
+    """
+    Parse a Gemini URL for lower-level network communication.
+
+    >>> _parse_url("gemini://foo.dev/users/matt/index.gmi")
+    ('foo.dev', 1965)
+
+    >>> _parse_url("//foo.dev:4242/foo/bar")
+    ('foo.dev', 4242)
+
+    :param url: a Gemini URL.
+    :return: a tuple of the host and port of the URL. The port defaults to the default Gemini port.
+    """
+
     parsed_url = urlparse(url)
 
     if not parsed_url.hostname:
         raise exceptions.InvalidURLError(f"Invalid URL: {url}")
-    if parsed_url.scheme != "" and not parsed_url.scheme.lower() == "gemini":
+    if parsed_url.scheme and parsed_url.scheme.lower() != "gemini":
         raise exceptions.UnknownProtocolError(f"Unknown protocol: {parsed_url.scheme}")
 
     host = parsed_url.hostname
@@ -221,6 +243,8 @@ def sync_request(
 async def async_request(
     url: str, cert_store: tofu.SelfSignedCertStore = None
 ) -> Tuple[HeaderLine, Optional[bytes]]:
+    """Make an asynchronous Gemini request."""
+
     if cert_store is None:
         cert_store = tofu.SelfSignedCertFileStore()
 
@@ -233,21 +257,21 @@ async def async_request(
         reader, writer = await asyncio.open_connection(
             host=host, port=port, ssl=context, ssl_handshake_timeout=10
         )
-    except ssl.SSLCertVerificationError as e:
+    except ssl.SSLCertVerificationError as cert_error:
         logger.debug(
             "request to %s:%d failed due to self-signed certificate", host, port
         )
-        if e.verify_code == constants.SSL_SELF_SIGNED_CERT_ERROR_CODE:
-            certificate = ssl.get_server_certificate((host, port))
-            cert_store.store_cert(host, certificate)
+        if cert_error.verify_code != constants.SSL_SELF_SIGNED_CERT_ERROR_CODE:
+            raise cert_error
 
-            logger.debug(
-                "retrying request to %s:%d with self-signed certificate", host, port
-            )
-            header, response = await async_request(url, cert_store)
-            return header, response
-        else:
-            raise e
+        certificate = ssl.get_server_certificate((host, port))
+        cert_store.store_cert(host, certificate)
+
+        logger.debug(
+            "retrying request to %s:%d with self-signed certificate", host, port
+        )
+        header, response = await async_request(url, cert_store)
+        return header, response
 
     try:
         writer.write(url.encode() + b"\r\n")
