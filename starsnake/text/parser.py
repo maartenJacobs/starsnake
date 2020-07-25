@@ -6,11 +6,15 @@ Parser for text/gemini documents.
     TextLine(line=b''),
     Link(url=b'users/', friendly_name=b'Users directory')]
 """
-
+import logging
 import re
 from collections import namedtuple
 from dataclasses import dataclass
 from typing import Union, List, Optional, Iterator
+
+from .constants import LOGGER_NAME
+
+logger = logging.getLogger(LOGGER_NAME)
 
 
 GEMINI_MIME_TYPE = "text/gemini"
@@ -114,7 +118,7 @@ def _stream_lines(blob: bytes) -> Iterator[bytes]:
         line_index = _index(b"\n")
 
 
-def parse_gemini_text(blob: bytes) -> List[LINE]:
+def parse_gemini_text(blob: bytes, encoding: str = "utf-8") -> List[LINE]:
     """
     Parse Gemini text as a list of line types.
 
@@ -129,6 +133,7 @@ def parse_gemini_text(blob: bytes) -> List[LINE]:
         ListItem(item=b'List item 1')]
 
     :param blob: the gemini text as bytes.
+    :param encoding: the encoding of the text.
     :return: a list of line types.
     """
 
@@ -150,8 +155,14 @@ def parse_gemini_text(blob: bytes) -> List[LINE]:
             preformatting_blob += line
             continue
 
+        try:
+            decoded_line: str = line.decode(encoding=encoding)
+        except UnicodeDecodeError:
+            logger.warning("failed to decode line as %s", encoding)
+            decoded_line = ""
+
         # Headers are more advanced line types.
-        match = HEADING_REGEX.match(line.decode())
+        match = HEADING_REGEX.match(decoded_line)
         if match:
             heading_level = len(match.group("level"))
             heading = match.group("heading")
@@ -159,13 +170,13 @@ def parse_gemini_text(blob: bytes) -> List[LINE]:
             continue
 
         # List items are any lines that start with a list item indicator.
-        match = LIST_ITEM_REGEX.match(line.decode())
+        match = LIST_ITEM_REGEX.match(decoded_line)
         if match:
             item_start = match.group("list_start")
             parsed_lines.append(ListItem(line[len(item_start) :].strip(b"\n")))
             continue
 
-        match = LINK_REGEX.match(line.decode())
+        match = LINK_REGEX.match(decoded_line)
         if match:
             url = match.group("url").strip().encode("utf-8")
             friendly_name = (match.group("friendly_name") or "").strip().encode("utf-8")

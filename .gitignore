@@ -9,3 +9,9 @@ venv*/
 
 # Build artifacts.
 *.egg-info/
+
+# Coverage database.
+.coverage
+
+# Hypothesis database.
+.hypothesis/
