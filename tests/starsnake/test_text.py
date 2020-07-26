@@ -32,10 +32,6 @@ def test_parse_then_format(text: bytes):
     expected = b"".join(
         map(lambda line: cast(bytes, line).strip() + b"\n", text.split(b"\n"))
     )
-    if expected and expected[-1] != ord("\n"):
-        expected += b"\n"
-
-    print(text, format_gemini_text(parse_gemini_text(text)))
     assert expected == format_gemini_text(parse_gemini_text(text))
 
 
