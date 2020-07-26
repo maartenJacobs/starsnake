@@ -9,6 +9,7 @@ import logging
 import sys
 from functools import partial
 from typing import Set, Tuple, Optional, cast
+from urllib import parse
 
 from starsnake import client
 
@@ -85,11 +86,32 @@ def _command_from_cli() -> Command:
     )
 
 
+def _add_input_to_url(url: str, response: str) -> str:
+    """
+    Add the response prompt to the original URL.
+
+    Note: the query part of the original URL will be replaced completely.
+    """
+    parsed_url = parse.urlparse(url)
+    extended_url = parse.ParseResult(
+        parsed_url.scheme,
+        parsed_url.netloc,
+        parsed_url.path,
+        parsed_url.params,
+        parse.quote(response),
+        parsed_url.fragment,
+    )
+    return extended_url.geturl()
+
+
 def _make_request(
     url: str, follow_redirects: bool, prev_redirects: Set[str]
 ) -> Tuple[client.HeaderLine, Optional[bytes]]:
     """
     Fetch the page at url, optionally following redirects whilst preventing redirect chains.
+
+    Input responses are dealt with by prompting the user. The fetched page therefore cannot be
+    an INPUT response.
 
     Malicious pages that keep redirecting are limited by `os.getrecursionlimit()`. For a simple
     curl-like script this is better than an infinite redirect but consider using an explicit
@@ -98,7 +120,7 @@ def _make_request(
     :param url: Gemini URL to fetch.
     :param follow_redirects: make additional requests until response is not redirect.
     :param prev_redirects: previous redirects state. This is used to prevent infinite redirects.
-    :return: fetched page
+    :return: fetched page.
     :raises RedirectCycleError: client was redirected to page that previously resulted in a
         redirect.
     :raises TooManyRedirectsError: client was redirected too many times.
@@ -121,6 +143,10 @@ def _make_request(
             raise TooManyRedirectsError(
                 f"followed too many ({len(prev_redirects)}) redirects"
             )
+    elif header.category == client.Category.INPUT:
+        prompt_resp = input(header.meta)
+        new_url = _add_input_to_url(url, prompt_resp)
+        return _make_request(new_url, follow_redirects, prev_redirects)
 
     logger.info("followed %d redirects to end up at %s", len(prev_redirects), url)
     return header, response
@@ -137,7 +163,7 @@ def _configure_logger(logging_level: int, logger: logging.Logger):
     logger.addHandler(handler)
 
 
-def _execute_command(command: Command) -> int:
+def execute_command(command: Command) -> int:
     """
     Execute the parsed command.
     :param command: command options including URL to fetch.
@@ -150,13 +176,16 @@ def _execute_command(command: Command) -> int:
     configure_logger(logging.getLogger(client.constants.LOGGER_NAME))
 
     # Make the request.
-    header, response = _make_request(command.url, cmd.follow_redirects, set())
+    header, response = _make_request(command.url, command.follow_redirects, set())
 
     if header.category == client.Category.SUCCESS:
         print(cast(bytes, response).decode())
     elif header.category == client.Category.INPUT:
-        input(header.meta)
-        # TODO: feed answer back via next request.
+        print(
+            "programmer error: server is asking for input "
+            "but program should have dealt with this already."
+        )
+        return 2
     elif header.category == client.Category.REDIRECT:
         print(f"redirect to {header.meta}")
     elif header.category == client.Category.TEMPORARY_FAILURE:
@@ -175,5 +204,5 @@ def _execute_command(command: Command) -> int:
 if __name__ == "__main__":
     # pylint: disable=invalid-name
     cmd = _command_from_cli()
-    exit_code = _execute_command(cmd)
+    exit_code = execute_command(cmd)
     sys.exit(exit_code)
