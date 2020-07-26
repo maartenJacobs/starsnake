@@ -14,8 +14,7 @@ import random
 from typing import Set, Optional, cast, Iterator, Tuple, List
 from urllib.parse import ParseResult, urlparse
 
-from starsnake import client
-from starsnake.text import parser
+from starsnake import client, text
 
 logger = logging.getLogger("downloader")
 
@@ -175,7 +174,7 @@ class Storage:
         storage_path.parent.mkdir(parents=True, exist_ok=True)
 
     def _extension_name(self, mimetype: str) -> str:
-        if mimetype == parser.GEMINI_MIME_TYPE:
+        if mimetype == text.GEMINI_MIME_TYPE:
             return "gmi"
         return "unknown"
 
@@ -223,7 +222,7 @@ class ResponseProcessor:
         """Store the page and try to retrieve further URLs."""
         logger.info("'%s' serves a page with mime type '%s'", from_url.path, mime_type)
         self.storage.store(from_url.path, mime_type, response)
-        if mime_type == parser.GEMINI_MIME_TYPE:
+        if mime_type == text.GEMINI_MIME_TYPE:
             logger.debug("extracting links from '%s'", from_url.path)
             self._urls_from_response(from_url, response)
 
@@ -261,14 +260,14 @@ class ResponseProcessor:
             parts = parts[:-1]
         return "/".join(parts)
 
-    def _is_link(self, line: parser.LINE):
-        return isinstance(line, parser.Link)
+    def _is_link(self, line: text.LINE):
+        return isinstance(line, text.Link)
 
     def _urls_from_response(self, from_url: ParseResult, response: bytes):
-        lines = parser.parse_gemini_text(response)
+        lines = text.parse_gemini_text(response)
         links = cast(
-            Iterator[parser.Link],
-            filter(lambda line: isinstance(line, parser.Link), lines),
+            Iterator[text.Link],
+            filter(lambda line: isinstance(line, text.Link), lines),
         )
         for link in links:
             absolute_url = self._make_absolute(urlparse(link.url.decode()), from_url)
